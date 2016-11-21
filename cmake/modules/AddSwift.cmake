@@ -767,7 +767,7 @@ function(_add_swift_library_single target name)
     endif()
   endif()
 
-  if("${SWIFTLIB_SINGLE_SDK}" STREQUAL "WINDOWS")
+  if("${SWIFTLIB_SINGLE_SDK}" STREQUAL "WINDOWS" AND NOT "${CMAKE_SYSTEM_NAME}" STREQUAL "Windows")
     if("${libkind}" STREQUAL "SHARED")
       # Each dll has an associated .lib (import library); since we may be
       # building on a non-DLL platform (not windows), create an imported target
@@ -916,10 +916,17 @@ function(_add_swift_library_single target name)
   set(prefixed_link_libraries)
   foreach(dep ${SWIFTLIB_SINGLE_LINK_LIBRARIES})
     if("${dep}" MATCHES "^clang")
-      set(dep "${LLVM_LIBRARY_OUTPUT_INTDIR}/lib${dep}.a")
-    endif()
-    if("${dep}" STREQUAL "cmark")
-      set(dep "${CMARK_LIBRARY_DIR}/lib${dep}.a")
+      if ("${SWIFT_HOST_VARIANT_SDK}" STREQUAL "WINDOWS")
+        set(dep "${LLVM_LIBRARY_OUTPUT_INTDIR}/${dep}.lib")
+      else()
+        set(dep "${LLVM_LIBRARY_OUTPUT_INTDIR}/lib${dep}.a")
+      endif()
+    elseif("${dep}" STREQUAL "cmark")
+      if ("${SWIFT_HOST_VARIANT_SDK}" STREQUAL "WINDOWS")
+        set(dep "${CMARK_LIBRARY_DIR}/cmark.lib")
+      else()
+        set(dep "${CMARK_LIBRARY_DIR}/lib${dep}.a")
+      endif()
     endif()
     list(APPEND prefixed_link_libraries "${dep}")
   endforeach()
@@ -1085,7 +1092,7 @@ function(_add_swift_library_single target name)
         # libraries are only associated with shared libraries, so add an
         # additional check for that as well.
         set(import_library ${library})
-        if(TARGET ${library})
+        if(TARGET ${library} AND NOT "${CMAKE_SYSTEM_NAME}" STREQUAL "Windows")
           get_target_property(type ${library} TYPE)
           if(${type} STREQUAL "SHARED_LIBRARY")
             set(import_library ${library}_IMPLIB)
@@ -1833,7 +1840,21 @@ function(_add_swift_executable_single name)
       BINARY_DIR ${SWIFT_RUNTIME_OUTPUT_INTDIR}
       LIBRARY_DIR ${SWIFT_LIBRARY_OUTPUT_INTDIR})
 
+  # On Windows, libraries are prefixed with "lib", so we need to adjust FAT_LIBRARIES for this.
+  if ("${CMAKE_SYSTEM_NAME}" STREQUAL "Windows")
+    _list_add_string_prefix(
+        "${SWIFTEXE_SINGLE_LINK_FAT_LIBRARIES}"
+        "lib"
+        SWIFTEXE_SINGLE_LINK_FAT_LIBRARIES)
+  endif()
+
   target_link_libraries("${name}" ${SWIFTEXE_SINGLE_LINK_LIBRARIES} ${SWIFTEXE_SINGLE_LINK_FAT_LIBRARIES})
+
+  # On Windows, we need to link rpcrt4.lib for UUIDs and mincore.lib for various file system APIs
+  if ("${CMAKE_SYSTEM_NAME}" STREQUAL "Windows")
+    target_link_libraries("${name}" "mincore.lib" "rpcrt4.lib")
+  endif()
+
   swift_common_llvm_config("${name}" ${SWIFTEXE_SINGLE_LLVM_COMPONENT_DEPENDS})
 
   set_target_properties(${name}
