@@ -109,17 +109,18 @@ function(_add_variant_c_compile_link_flags)
     ""
     ${ARGN})
 
-  set(result
-    ${${CFLAGS_RESULT_VAR_NAME}}
-    "-target" "${SWIFT_SDK_${CFLAGS_SDK}_ARCH_${CFLAGS_ARCH}_TRIPLE}")
+  # MSVC doesn't understand the option -target
+  if (NOT "${CMAKE_C_COMPILER_ID}" STREQUAL "MSVC")
+    set(result
+      ${${CFLAGS_RESULT_VAR_NAME}}
+      "-target" "${SWIFT_SDK_${CFLAGS_SDK}_ARCH_${CFLAGS_ARCH}_TRIPLE}")
+  endif()
 
   is_darwin_based_sdk("${CFLAGS_SDK}" IS_DARWIN)
   if(IS_DARWIN)
     list(APPEND result "-isysroot" "${SWIFT_SDK_${CFLAGS_SDK}_PATH}")
-  else()
-    if(NOT "${SWIFT_SDK_${CFLAGS_SDK}_PATH}" STREQUAL "/")
-      list(APPEND result "--sysroot=${SWIFT_SDK_${CFLAGS_SDK}_PATH}")
-    endif()
+  elseif(NOT "${SWIFT_SDK_${CFLAGS_SDK}_PATH}" STREQUAL "/")
+    list(APPEND result "--sysroot=${SWIFT_SDK_${CFLAGS_SDK}_PATH}")
   endif()
 
   if("${CFLAGS_SDK}" STREQUAL "ANDROID")
@@ -129,7 +130,9 @@ function(_add_variant_c_compile_link_flags)
       "-B" "${SWIFT_ANDROID_PREBUILT_PATH}/arm-linux-androideabi/bin/")
   endif()
 
-  if("${CFLAGS_SDK}" STREQUAL "WINDOWS")
+  # MSVC doesn't understand -fms-compatibility-version. Also, these definitions should not be added here
+  # for MSVC, as the linker and compiler have different command line options
+  if("${CFLAGS_SDK}" STREQUAL "WINDOWS" AND NOT "${CMAKE_C_COMPILER_ID}" STREQUAL "MSVC")
     list(APPEND result "-DLLVM_ON_WIN32")
     list(APPEND result "-D_CRT_SECURE_NO_WARNINGS")
     # TODO(compnerd) handle /MT
@@ -198,38 +201,69 @@ function(_add_variant_c_compile_flags)
     RESULT_VAR_NAME result)
 
   is_build_type_optimized("${CFLAGS_BUILD_TYPE}" optimized)
-  if(optimized)
-    list(APPEND result "-O2")
 
-    # Add -momit-leaf-frame-pointer on x86.
-    if("${CFLAGS_ARCH}" STREQUAL "i386" OR "${CFLAGS_ARCH}" STREQUAL "x86_64")
-      list(APPEND result "-momit-leaf-frame-pointer")
+  # MSVC has different options to most compilers!
+  if("${CMAKE_C_COMPILER_ID}" STREQUAL "MSVC")
+    list(APPEND result "-DLLVM_ON_WIN32")
+    list(APPEND result "-D_CRT_SECURE_NO_WARNINGS")
+    # TODO(compnerd) handle /MT
+    list(APPEND result "-D_DLL")
+
+    if(optimized)
+      list(APPEND result "/O2")
+
+      # Add -momit-leaf-frame-pointer on x86.
+      if("${CFLAGS_ARCH}" STREQUAL "x86" OR "${CFLAGS_ARCH}" STREQUAL "x86_64")
+        list(APPEND result "/Oy")
+      endif()
+    else()
+      list(APPEND result "/Od")
     endif()
   else()
-    list(APPEND result "-O0")
+    if(optimized)
+      list(APPEND result "-O2")
+
+      # Add -momit-leaf-frame-pointer on x86.
+      if("${CFLAGS_ARCH}" STREQUAL "i386" OR "${CFLAGS_ARCH}" STREQUAL "x86_64")
+        list(APPEND result "-momit-leaf-frame-pointer")
+      endif()
+    else()
+      list(APPEND result "-O0")
+    endif()
   endif()
 
   is_build_type_with_debuginfo("${CFLAGS_BUILD_TYPE}" debuginfo)
-  if(debuginfo)
-    _compute_lto_flag("${CFLAGS_ENABLE_LTO}" _lto_flag_out)
-    if(_lto_flag_out)
-      list(APPEND result "-gline-tables-only")
+
+  # MSVC has different options to most compilers
+  # TODO (hughbe/Windows/MSVC): we should investigate whether MSVC *actually* needs these flags
+  # (i.e. we can build Swift.exe without them)
+  if(NOT "${CMAKE_C_COMPILER_ID}" STREQUAL "MSVC")
+    if(debuginfo)
+      _compute_lto_flag("${CFLAGS_ENABLE_LTO}" _lto_flag_out)
+      if(_lto_flag_out)
+        list(APPEND result "-gline-tables-only")
+      else()
+        list(APPEND result "-g")
+      endif()
     else()
-      list(APPEND result "-g")
+      list(APPEND result "-g0")
     endif()
-  else()
-    list(APPEND result "-g0")
   endif()
 
   if("${CFLAGS_SDK}" STREQUAL "WINDOWS")
-    list(APPEND result -Xclang;--dependent-lib=oldnames)
-    # TODO(compnerd) handle /MT, /MTd, /MD, /MDd
-    if("${CMAKE_BUILD_TYPE}" STREQUAL "RELEASE")
-      list(APPEND result "-D_MD")
-      list(APPEND result -Xclang;--dependent-lib=msvcrt)
-    else()
-      list(APPEND result "-D_MDd")
-      list(APPEND result -Xclang;--dependent-lib=msvcrtd)
+    # MSVC doesn't define -XClang or --dependent-lib
+    # TODO (hughbe/Windows/MSVC): we should investigate whether MSVC *actually* needs these flags
+    # (i.e. we can build Swift.exe without them
+    if (NOT "${CMAKE_C_COMPILER_ID}" STREQUAL "MSVC")
+      list(APPEND result -Xclang;--dependent-lib=oldnames)
+      # TODO(compnerd) handle /MT, /MTd, /MD, /MDd
+      if("${CMAKE_BUILD_TYPE}" STREQUAL "Release")
+        list(APPEND result "-D_MD")
+        list(APPEND result -Xclang;--dependent-lib=msvcrt)
+      else()
+        list(APPEND result "-D_MDd")
+        list(APPEND result -Xclang;--dependent-lib=msvcrtd)
+      endif()
     endif()
   endif()
 
@@ -330,9 +364,14 @@ function(_add_variant_link_flags)
   elseif("${LFLAGS_SDK}" STREQUAL "CYGWIN")
     # No extra libraries required.
   elseif("${LFLAGS_SDK}" STREQUAL "WINDOWS")
-    # NOTE: we do not use "/MD" or "/MDd" and select the runtime via linker
-    # options.  This causes conflicts.
-    list(APPEND result "-nostdlib")
+      # MSVC doesn't define -XClang or --dependent-lib
+      # TODO (hughbe/Windows/MSVC): We should investigate whether MSVC *actually* needs these flags
+      # (i.e. we can build Swift.exe without them
+    if(NOT "${CMAKE_C_COMPILER_ID}" STREQUAL "MSVC")
+      # NOTE: we do not use "/MD" or "/MDd" and select the runtime via linker
+      # options.  This causes conflicts.
+      list(APPEND result "-nostdlib")
+    endif()
   elseif("${LFLAGS_SDK}" STREQUAL "ANDROID")
     list(APPEND result
         "-ldl"
@@ -355,11 +394,25 @@ function(_add_variant_link_flags)
       endif()
   endif()
 
-  if(NOT "${SWIFT_${LFLAGS_SDK}_ICU_UC}" STREQUAL "")
-    list(APPEND result "-L${SWIFT_${sdk}_ICU_UC}")
-  endif()
-  if(NOT "${SWIFT_${LFLAGS_SDK}_ICU_I18N}" STREQUAL "")
-    list(APPEND result "-L${SWIFT_${sdk}_ICU_I18N}")
+  # The MSVC linker has different flags to other linkers.
+  # TODO: we should consider moving the non-MSVC code to use link_directories
+  # as this reduces code duplication.
+  if ("${CMAKE_C_COMPILER_ID}" STREQUAL "MSVC")
+    if(NOT "${SWIFT_${LFLAGS_SDK}_ICU_UC_LIBRARIES}" STREQUAL "")
+      link_directories("${SWIFT_${sdk}_ICU_UC_LIBRARIES}")
+    endif()
+
+    if(NOT "${SWIFT_${LFLAGS_SDK}_ICU_I18N_LIBRARIES}" STREQUAL "${SWIFT_${LFLAGS_SDK}_ICU_UC_LIBRARIES}")
+      link_directories("${SWIFT_${sdk}_ICU_UC_LIBRARIES}")
+    endif()
+  else()
+    if(NOT "${SWIFT_${LFLAGS_SDK}_ICU_UC}" STREQUAL "")
+      list(APPEND result "-L${SWIFT_${sdk}_ICU_UC}")
+    endif()
+
+    if(NOT "${SWIFT_${LFLAGS_SDK}_ICU_I18N}" STREQUAL "")
+      list(APPEND result "-L${SWIFT_${sdk}_ICU_I18N}")
+    endif()
   endif()
 
   set("${LFLAGS_RESULT_VAR_NAME}" "${result}" PARENT_SCOPE)
@@ -757,13 +810,25 @@ function(_add_swift_library_single target name)
   _set_target_prefix_and_suffix("${target}" "${libkind}" "${SWIFTLIB_SINGLE_SDK}")
 
   if(SWIFTLIB_SINGLE_TARGET_LIBRARY)
-    if(NOT "${SWIFT_${SWIFTLIB_SINGLE_SDK}_ICU_UC_INCLUDE}" STREQUAL "")
-      set_property(TARGET "${target}" APPEND_STRING
-          PROPERTY INCLUDE_DIRECTORIES "${SWIFT_${SWIFTLIB_SINGLE_SDK}_ICU_UC_INCLUDE}")
-    endif()
-    if(NOT "${SWIFT_${SWIFTLIB_SINGLE_SDK}_ICU_I18N_INCLUDE}" STREQUAL "")
-      set_property(TARGET "${target}" APPEND_STRING
-          PROPERTY INCLUDE_DIRECTORIES "${SWIFT_${SWIFTLIB_SINGLE_SDK}_ICU_I18N_INCLUDE}")
+    # MSVC doesn't obey INCLUDE_DIRECTORIES, so we need to use the CMake function instead.
+    # TODO: we should consider moving the non-MSVC code to use include_directories, as
+    # this reduces code duplication.
+    if("${CMAKE_C_COMPILER_ID}" STREQUAL "MSVC")
+      if(NOT "${SWIFT_${SWIFTLIB_SINGLE_SDK}_ICU_UC_INCLUDE}" STREQUAL "")
+        include_directories("${SWIFT_${SWIFTLIB_SINGLE_SDK}_ICU_UC_INCLUDE}")
+      endif()
+      if(NOT "${SWIFT_${SWIFTLIB_SINGLE_SDK}_ICU_I18N_INCLUDE}" STREQUAL "${SWIFT_${SWIFTLIB_SINGLE_SDK}_ICU_UC_INCLUDE}")
+        include_directories("${SWIFT_${SWIFTLIB_SINGLE_SDK}_ICU_I18N_INCLUDE}")
+      endif()
+    else()
+      if(NOT "${SWIFT_${SWIFTLIB_SINGLE_SDK}_ICU_UC_INCLUDE}" STREQUAL "")
+        set_property(TARGET "${target}" APPEND_STRING
+            PROPERTY INCLUDE_DIRECTORIES "${SWIFT_${SWIFTLIB_SINGLE_SDK}_ICU_UC_INCLUDE}")
+      endif()
+      if(NOT "${SWIFT_${SWIFTLIB_SINGLE_SDK}_ICU_I18N_INCLUDE}" STREQUAL "")
+        set_property(TARGET "${target}" APPEND_STRING
+            PROPERTY INCLUDE_DIRECTORIES "${SWIFT_${SWIFTLIB_SINGLE_SDK}_ICU_I18N_INCLUDE}")
+      endif()
     endif()
   endif()
 
@@ -1025,14 +1090,17 @@ function(_add_swift_library_single target name)
     RESULT_VAR_NAME link_flags
       )
 
-  if(SWIFT_ENABLE_GOLD_LINKER AND
-     "${SWIFT_SDK_${SWIFTLIB_SINGLE_SDK}_OBJECT_FORMAT}" STREQUAL "ELF")
-    list(APPEND link_flags "-fuse-ld=gold")
-  endif()
-  if(SWIFT_ENABLE_LLD_LINKER OR
-     ("${SWIFTLIB_SINGLE_SDK}" STREQUAL "WINDOWS" AND
-      NOT "${CMAKE_SYSTEM_NAME}" STREQUAL "WINDOWS"))
-    list(APPEND link_flags "-fuse-ld=lld")
+  # MSVC doesn't recognise -fuse-ld
+  if (NOT "${CMAKE_C_COMPILER_ID}" STREQUAL "MSVC")
+    if(SWIFT_ENABLE_GOLD_LINKER AND
+       "${SWIFT_SDK_${SWIFTLIB_SINGLE_SDK}_OBJECT_FORMAT}" STREQUAL "ELF")
+      list(APPEND link_flags "-fuse-ld=gold")
+    endif()
+    if(SWIFT_ENABLE_LLD_LINKER OR
+       ("${SWIFTLIB_SINGLE_SDK}" STREQUAL "WINDOWS" AND
+        NOT "${CMAKE_SYSTEM_NAME}" STREQUAL "WINDOWS"))
+      list(APPEND link_flags "-fuse-ld=lld")
+    endif()
   endif()
 
   # Configure plist creation for OS X.
@@ -1074,8 +1142,16 @@ function(_add_swift_library_single target name)
   # Set compilation and link flags.
   set_property(TARGET "${target}" APPEND_STRING PROPERTY
       COMPILE_FLAGS " ${c_compile_flags}")
-  set_property(TARGET "${target}" APPEND_STRING PROPERTY
-    LINK_FLAGS " ${link_flags} -L${SWIFTLIB_DIR}/${SWIFTLIB_SINGLE_SUBDIR} -L${SWIFT_NATIVE_SWIFT_TOOLS_PATH}/../lib/swift/${SWIFTLIB_SINGLE_SUBDIR} -L${SWIFT_NATIVE_SWIFT_TOOLS_PATH}/../lib/swift/${SWIFT_SDK_${SWIFTLIB_SINGLE_SDK}_LIB_SUBDIR}")
+
+  # The MSVC linker has different flags to other linkers.
+  # TODO: we should consider moving the non-MSVC code to use link_directories
+  # as this reduces code duplication.
+  if ("${CMAKE_C_COMPILER_ID}" STREQUAL "MSVC")
+    link_directories("${SWIFTLIB_DIR}/${SWIFTLIB_SINGLE_SUBDIR}" "${SWIFT_NATIVE_SWIFT_TOOLS_PATH}/../lib/swift/${SWIFTLIB_SINGLE_SUBDIR}" "${SWIFT_NATIVE_SWIFT_TOOLS_PATH}/../lib/swift/${SWIFT_SDK_${SWIFTLIB_SINGLE_SDK}_LIB_SUBDIR}")
+  else()
+    set_property(TARGET "${target}" APPEND_STRING PROPERTY
+      LINK_FLAGS " ${link_flags} -L${SWIFTLIB_DIR}/${SWIFTLIB_SINGLE_SUBDIR} -L${SWIFT_NATIVE_SWIFT_TOOLS_PATH}/../lib/swift/${SWIFTLIB_SINGLE_SUBDIR} -L${SWIFT_NATIVE_SWIFT_TOOLS_PATH}/../lib/swift/${SWIFT_SDK_${SWIFTLIB_SINGLE_SDK}_LIB_SUBDIR}")
+  endif()
 
   # Adjust the linked libraries for windows targets.  On Windows, the link is
   # performed against the import library, and the runtime uses the dll.  Not
@@ -1765,8 +1841,15 @@ function(_add_swift_executable_single name)
     ANALYZE_CODE_COVERAGE "${SWIFT_ANALYZE_CODE_COVERAGE}"
     RESULT_VAR_NAME link_flags)
 
-  list(APPEND link_flags
-      "-L${SWIFTLIB_DIR}/${SWIFT_SDK_${SWIFTEXE_SINGLE_SDK}_LIB_SUBDIR}")
+  # The MSVC linker has different flags to other linkers.
+  # TODO: we should consider moving the non-MSVC code to use link_directories
+  # as this reduces code duplication.
+  if ("${CMAKE_C_COMPILER_ID}" STREQUAL "MSVC")
+    link_directories("${SWIFTLIB_DIR}/${SWIFT_SDK_${SWIFTEXE_SINGLE_SDK}_LIB_SUBDIR}")
+  else()
+    list(APPEND link_flags
+          "-L${SWIFTLIB_DIR}/${SWIFT_SDK_${SWIFTEXE_SINGLE_SDK}_LIB_SUBDIR}")
+  endif()
 
   if(SWIFTEXE_SINGLE_DISABLE_ASLR)
     list(APPEND link_flags "-Wl,-no_pie")
@@ -1779,14 +1862,17 @@ function(_add_swift_executable_single name)
         "-Xlinker" "@executable_path/../lib/swift/${SWIFT_SDK_${SWIFTEXE_SINGLE_SDK}_LIB_SUBDIR}")
   endif()
 
-  if(SWIFT_ENABLE_GOLD_LINKER AND
-     "${SWIFT_SDK_${SWIFTEXE_SINGLE_SDK}_OBJECT_FORMAT}" STREQUAL "ELF")
-    list(APPEND link_flags "-fuse-ld=gold")
-  endif()
-  if(SWIFT_ENABLE_LLD_LINKER OR
-     ("${SWIFTLIB_SINGLE_SDK}" STREQUAL "WINDOWS" AND
-      NOT "${CMAKE_SYSTEM_NAME}" STREQUAL "WINDOWS"))
-    list(APPEND link_flags "-fuse-ld=lld")
+  # MSVC doesn't recognise -fuse-ld
+  if (NOT "${CMAKE_C_COMPILER_ID}" STREQUAL "MSVC")
+    if(SWIFT_ENABLE_GOLD_LINKER AND
+       "${SWIFT_SDK_${SWIFTEXE_SINGLE_SDK}_OBJECT_FORMAT}" STREQUAL "ELF")
+      list(APPEND link_flags "-fuse-ld=gold")
+    endif()
+    if(SWIFT_ENABLE_LLD_LINKER OR
+       ("${SWIFTLIB_SINGLE_SDK}" STREQUAL "WINDOWS" AND
+        NOT "${CMAKE_SYSTEM_NAME}" STREQUAL "WINDOWS"))
+      list(APPEND link_flags "-fuse-ld=lld")
+    endif()
   endif()
 
   # Find the names of dependency library targets.
