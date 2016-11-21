@@ -820,6 +820,9 @@ function(_add_swift_library_single target name)
       if(NOT "${SWIFT_${SWIFTLIB_SINGLE_SDK}_ICU_I18N_INCLUDE}" STREQUAL "${SWIFT_${SWIFTLIB_SINGLE_SDK}_ICU_UC_INCLUDE}")
         include_directories("${SWIFT_${SWIFTLIB_SINGLE_SDK}_ICU_I18N_INCLUDE}")
       endif()
+
+      # We need to include cmark at this point (not in swift_common_standalone_build_config_cmark) using MSVC
+      include_directories("${CMARK_MAIN_INCLUDE_DIR}" "${CMARK_BUILD_INCLUDE_DIR}")
     else()
       if(NOT "${SWIFT_${SWIFTLIB_SINGLE_SDK}_ICU_UC_INCLUDE}" STREQUAL "")
         set_property(TARGET "${target}" APPEND_STRING
