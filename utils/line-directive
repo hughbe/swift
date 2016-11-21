@@ -20,6 +20,7 @@ import bisect
 import re
 import subprocess
 import sys
+import os
 
 line_pattern = re.compile(
     r'^// ###sourceLocation\(file:\s*"([^"]+)",\s*line:\s*([0-9]+)\s*\)')
@@ -244,8 +245,15 @@ def run():
         dashes = sys.argv.index('--')
         sources = sys.argv[1:dashes]
 
+        # subprocess.Popen doesn't normalise paths on Windows (e.g. C:/swift/./lib)
+        # and instead reports file/directory not found errors. Therefore, we need
+        # to manually nromalise the path to the script to invoke. The rest will be
+        # handled automatically.
+        command_args = sys.argv[dashes + 1:]
+        command_args[0] = os.path.normpath(command_args[0])
+
         command = subprocess.Popen(
-            sys.argv[dashes + 1:],
+            command_args,
             stderr=subprocess.STDOUT,
             stdout=subprocess.PIPE,
             universal_newlines=True
