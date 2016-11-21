@@ -84,7 +84,7 @@ add_swift_library(swiftRuntime OBJECT_LIBRARY TARGET_LIBRARY
   C_COMPILE_FLAGS ${swift_runtime_library_compile_flags}
   LINK_FLAGS ${swift_runtime_linker_flags}
   INSTALL_IN_COMPONENT never_install
-  TARGET_SDKS ANDROID CYGWIN FREEBSD LINUX)
+  TARGET_SDKS ANDROID CYGWIN FREEBSD LINUX WINDOWS)
 
 set(ELFISH_SDKS)
 foreach(sdk ${SWIFT_CONFIGURED_SDKS})
