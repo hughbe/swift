@@ -12,7 +12,9 @@ add_swift_host_tool(swift-ide-test
 )
 
 # If libxml2 is available, make it available for swift-ide-test.
-if(SWIFT_HAVE_LIBXML)
+# libxml2 requires a lot of effort to build on Windows (requires GNUWin32 packages such as iconv)
+# TODO: we should try to get this working on Windows, but let's disable it until a good way to include libxml2 is possible
+if(NOT "${CMAKE_SYSTEM_NAME}" STREQUAL "Windows" AND SWIFT_HAVE_LIBXML)
   include_directories(SYSTEM ${LIBXML2_INCLUDE_DIR})
   target_link_libraries(swift-ide-test ${LIBXML2_LIBRARIES})
   add_definitions(-DSWIFT_HAVE_LIBXML="1")

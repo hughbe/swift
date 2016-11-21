@@ -1,6 +1,7 @@
 
-# On non-Darwin require UUID.
-if(CMAKE_SYSTEM_NAME STREQUAL "Darwin")
+# Darwin doesn't require libuuid, as it is built into the SDK
+# Windows don't require libuuid, as it will use Win32 APIs
+if("${CMAKE_SYSTEM_NAME}" STREQUAL "Darwin" OR "${CMAKE_SYSTEM_NAME}"  STREQUAL "Windows")
   set(UUID_INCLUDE "")
   set(UUID_LIBRARIES "")
 else()
