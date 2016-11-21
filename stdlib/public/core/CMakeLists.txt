@@ -166,20 +166,27 @@ if(CMAKE_SYSTEM_NAME STREQUAL "Darwin")
   list(APPEND swift_core_framework_depends Foundation)
   list(APPEND swift_core_framework_depends CoreFoundation)
 else()
-  # With the GNU linker the equivalent of -all_load is to tell the linker
-  # --whole-archive before the archive and --no-whole-archive after (without
-  # the second, it causes errors when the system libraries are told to
-  # include everything). The best way to get it in there, according to the
-  # documentation, is to put the flags in the target_link_libraries setting.
+    # With the GNU linker the equivalent of -all_load is to tell the linker
+    # --whole-archive before the archive and --no-whole-archive after (without
+    # the second, it causes errors when the system libraries are told to
+    # include everything). The best way to get it in there, according to the
+    # documentation, is to put the flags in the target_link_libraries setting.
 
-  # TODO: However, for the moment this actually makes things explode with an
-  # incomplete runtime. This should be turned back on when more of the porting
-  # effort has been completed.
-  #set(LINK_FLAGS
-  #  -Wl,--whole-archive swiftRuntime -Wl,--no-whole-archive)
-  find_package(ICU REQUIRED COMPONENTS uc i18n)
-  list(APPEND swift_core_private_link_libraries
-       ICU_UC ICU_I18N)
+    # TODO: However, for the moment this actually makes things explode with an
+    # incomplete runtime. This should be turned back on when more of the porting
+    # effort has been completed.
+    #set(LINK_FLAGS
+    #  -Wl,--whole-archive swiftRuntime -Wl,--no-whole-archive)
+
+    # Windows finds ICU manually, in order to avoid a dependency on PkgConfig
+    # which is not easily available on Windows. At this point, we assume that
+    # Windows has resolved the ICU package ICU.
+    if(NOT "${CMAKE_SYSTEM_NAME}" STREQUAL "Windows")
+      find_package(ICU REQUIRED COMPONENTS uc i18n)
+    endif()
+
+    list(APPEND swift_core_private_link_libraries
+         ICU_UC ICU_I18N)
 endif()
 
 if("${CMAKE_SYSTEM_NAME}" STREQUAL "CYGWIN")

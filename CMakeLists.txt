@@ -158,7 +158,7 @@ set(SWIFT_ANDROID_DEPLOY_DEVICE_PATH "" CACHE STRING
 # User-configurable ICU specific options for Android, FreeBSD, Linux.
 #
 
-foreach(sdk ANDROID;FREEBSD;LINUX;WINDOWS)
+foreach(sdk ANDROID;FREEBSD;LINUX)
   set(SWIFT_${sdk}_ICU_UC "" CACHE STRING
       "Path to a directory containing the icuuc library for ${sdk}")
   set(SWIFT_${sdk}_ICU_UC_INCLUDE "" CACHE STRING
@@ -586,6 +586,31 @@ elseif("${SWIFT_HOST_VARIANT_SDK}" STREQUAL "WINDOWS")
   configure_sdk_windows(WINDOWS "Windows" "msvc" "${SWIFT_HOST_VARIANT_ARCH}")
   set(SWIFT_PRIMARY_VARIANT_SDK_default  "${SWIFT_HOST_VARIANT_SDK}")
   set(SWIFT_PRIMARY_VARIANT_ARCH_default "${SWIFT_HOST_VARIANT_ARCH}")
+
+  # We don't have a build script for Windows currently (build-script-impl is a bash script), so temporarily shortens and simplifies the build
+  # command for Swift on Windows - we only need to define 1 CMAKE variable (-DSWIFT_WINDOWS_ICU), rather than 8 (that are all the same anyway!)
+  # We also want to avoid a dependency on PkgConfig (find_package), which is not easily available on Windows.
+  # TODO: move this to the Windows build-script when we have one
+  set(ICU_UC_INCLUDE_DIR "${SWIFT_WINDOWS_ICU}/include")
+  set(ICU_I18N_INCLUDE_DIR "${SWIFT_WINDOWS_ICU}/include")
+
+  if ("${SWIFT_HOST_VARIANT_ARCH}" STREQUAL "amd64" OR "${SWIFT_HOST_VARIANT_ARCH}" STREQUAL "ia64")
+    set(ICU_UC_LIBRARIES "${SWIFT_WINDOWS_ICU}/lib64")
+    set(ICU_I18N_LIBRARIES "${SWIFT_WINDOWS_ICU}/lib64")
+  else()
+    set(ICU_UC_LIBRARIES "${SWIFT_WINDOWS_ICU}/lib")
+    set(ICU_I18N_LIBRARIES "${SWIFT_WINDOWS_ICU}/lib")
+  endif()
+
+  set(SWIFT_WINDOWS_ICU_UC_INCLUDE "${ICU_UC_INCLUDE_DIR}")
+  set(SWIFT_WINDOWS_ICU_UC "${ICU_UC_LIBRARIES}/icuucd.lib")
+  set(SWIFT_WINDOWS_ICU_I18N_INCLUDE "${ICU_I18N_INCLUDE_DIR}")
+  set(SWIFT_WINDOWS_ICU_I18N "${ICU_I18N_LIBRARIES}/icuind.lib")
+
+  if (NOT EXISTS "${SWIFT_WINDOWS_ICU_UC}")
+    message(FATAL_ERROR "Could not find ICU UC at: ${SWIFT_WINDOWS_ICU_UC}. Have you correctly specified -DSWIFT_WINDOWS_ICU=...?")
+  elseif (NOT EXISTS "${SWIFT_WINDOWS_ICU_I18N}")
+    message(FATAL_ERROR "Could not find ICU I18N at: ${SWIFT_WINDOWS_ICU_I18N}. Have you correctly specified -DSWIFT_WINDOWS_ICU=...?")
   endif()
   
 elseif("${SWIFT_HOST_VARIANT_SDK}" MATCHES "(OSX|IOS*|TVOS*|WATCHOS*)")
