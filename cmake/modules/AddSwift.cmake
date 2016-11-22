@@ -294,8 +294,12 @@ function(_add_variant_swift_compile_flags
     sdk arch build_type enable_assertions result_var_name)
   set(result ${${result_var_name}})
 
+  # On Windows, we don't set SWIFT_SDK_WINDOWS_PATH, so don't include it
+  if (NOT "${CMAKE_SYSTEM_NAME}" STREQUAL "Windows")
+    list(APPEND result "-sdk" "${SWIFT_SDK_${sdk}_PATH}")
+  endif()
+
   list(APPEND result
-      "-sdk" "${SWIFT_SDK_${sdk}_PATH}"
       "-target" "${SWIFT_SDK_${sdk}_ARCH_${arch}_TRIPLE}"
       "-resource-dir" "${SWIFTLIB_DIR}")
 
@@ -303,6 +307,20 @@ function(_add_variant_swift_compile_flags
   if(IS_DARWIN)
     list(APPEND result
         "-F" "${SWIFT_SDK_${sdk}_PATH}/../../../Developer/Library/Frameworks")
+  endif()
+  
+  # We get errors compiling stdlib/public/Platform/msvcrt.swift if we don't include
+  # UCRT: "no such module 'ucrt'"
+  # TODO (hughbe/Windows/MSVC): this *sometimes* works!?! Often, we get 3 or more errors from swift.exe
+  # saying "No such file or directory" with various fragments of the parameter
+  # SWIFT_WINDOWS_LIB_DIRECTORY. This is because it is split into "C:/Program", "Files (x86)/Windows", "Kits/10/lib/10.0.10240.0/ucrt")
+  if("${CMAKE_C_COMPILER_ID}" STREQUAL "MSVC")
+    if (NOT EXISTS "${SWIFT_WINDOWS_LIB_DIRECTORY}")
+      MESSAGE(FATAL_ERROR "Could not find the Windows SDK at the path: ${SWIFT_WINDOWS_LIB_DIRECTORY}. Did you provide -DSWIFT_WINDOWS_LIB_DIRECTORY correctly?")
+    endif()
+
+    list(APPEND result
+        "-L" "${SWIFT_WINDOWS_LIB_DIRECTORY}")
   endif()
 
   is_build_type_optimized("${build_type}" optimized)
