@@ -222,6 +222,9 @@ void EnumInfo::determineConstantNamePrefix(ASTContext &ctx,
     case clang::AR_Unavailable:
       return false;
     }
+
+    // Work around MSVC warning: not all control paths return a value
+    llvm_unreachable("All switch cases are covered");
   };
 
   // Move to the first non-deprecated enumerator, or non-swift_name'd

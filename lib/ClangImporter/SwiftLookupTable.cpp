@@ -214,6 +214,9 @@ bool SwiftLookupTable::contextRequiresName(ContextKind kind) {
   case ContextKind::TranslationUnit:
     return false;
   }
+
+  // Work around MSVC warning: not all control paths return a value
+  llvm_unreachable("All switch cases are covered");
 }
 
 /// Try to translate the given Clang declaration into a context.
@@ -293,6 +296,9 @@ SwiftLookupTable::translateContext(EffectiveClangContext context) {
 
     return None;
   }
+
+  // Work around MSVC warning: not all control paths return a value
+  llvm_unreachable("All switch cases are covered");
 }
 
 /// Lookup an unresolved context name and resolve it to a Clang

@@ -68,7 +68,9 @@ using namespace importer;
 using clang::CompilerInstance;
 using clang::CompilerInvocation;
 
+#if !defined(_MSC_VER)
 #pragma mark Internal data structures
+#endif
 
 namespace {
   class HeaderImportCallbacks : public clang::PPCallbacks {
@@ -280,7 +282,9 @@ void ClangImporter::clearTypeResolver() {
   Impl.setTypeResolver(nullptr);
 }
 
+#if !defined(_MSC_VER)
 #pragma mark Module loading
+#endif
 
 #ifdef NDEBUG
 #define SHIMS_INCLUDE_FLAG "-isystem"
@@ -1393,7 +1397,9 @@ ClangModuleUnit *ClangImporter::Implementation::getClangModuleForDecl(
   return getWrapperForModule(importer, M);
 }
 
+#if !defined(_MSC_VER)
 #pragma mark Source locations
+#endif
 clang::SourceLocation
 ClangImporter::Implementation::exportSourceLoc(SourceLoc loc) {
   // FIXME: Implement!
@@ -1412,7 +1418,9 @@ ClangImporter::Implementation::importSourceRange(clang::SourceRange loc) {
   return SourceRange();
 }
 
+#if !defined(_MSC_VER)
 #pragma mark Importing names
+#endif
 
 clang::DeclarationName
 ClangImporter::Implementation::exportName(Identifier name) {
@@ -1610,7 +1618,9 @@ bool importer::shouldSuppressDeclImport(const clang::Decl *decl) {
   return false;
 }
 
+#if !defined(_MSC_VER)
 #pragma mark Name lookup
+#endif
 const clang::TypedefNameDecl *
 ClangImporter::Implementation::lookupTypedef(clang::DeclarationName name) {
   clang::Sema &sema = Instance->getSema();

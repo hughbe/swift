@@ -2739,6 +2739,9 @@ namespace {
         return nullptr;
       }
       }
+
+      // Work around MSVC warning: not all control paths return a value
+      llvm_unreachable("All switch cases are covered");
     }
 
 

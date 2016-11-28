@@ -140,6 +140,9 @@ namespace {
     case ImportHint::SwiftNewtypeFromCFPointer:
       return true;
     }
+
+    // Work around MSVC warning: not all control paths return a value
+    llvm_unreachable("All switch cases are covered");
   }
 
   struct ImportResult {
@@ -173,6 +176,9 @@ namespace {
         return OptionalType::get(payloadType);
       return ImplicitlyUnwrappedOptionalType::get(payloadType);
     }
+
+    // Work around MSVC warning: not all control paths return a value
+    llvm_unreachable("All switch cases are covered");
   }
 
   class SwiftTypeConverter :
@@ -296,6 +302,9 @@ namespace {
       case clang::BuiltinType::OMPArraySection:
         return Type();
       }
+
+      // Work around MSVC warning: not all control paths return a value
+      llvm_unreachable("All switch cases are covered");
     }
 
     ImportResult VisitComplexType(const clang::ComplexType *type) {
@@ -783,6 +792,9 @@ namespace {
         return getAdjustedTypeDeclReferenceType(decl);
       }
       }
+
+      // Work around MSVC warning: not all control paths return a value
+      llvm_unreachable("All switch cases are covered");
     }
 
     ImportResult VisitObjCObjectType(const clang::ObjCObjectType *type) {
@@ -1051,6 +1063,9 @@ static bool canBridgeTypes(ImportTypeKind importKind) {
   case ImportTypeKind::BridgedValue:
     return true;
   }
+
+  // Work around MSVC warning: not all control paths return a value
+  llvm_unreachable("All switch cases are covered");
 }
 
 /// True if the type has known CoreFoundation reference counting semantics.
@@ -1075,6 +1090,9 @@ static bool isCFAudited(ImportTypeKind importKind) {
   case ImportTypeKind::PropertyWithReferenceSemantics:
     return true;
   }
+
+  // Work around MSVC warning: not all control paths return a value
+  llvm_unreachable("All switch cases are covered");
 }
 
 /// Turn T into Unmanaged<T>.
@@ -1744,6 +1762,9 @@ adjustResultTypeForThrowingFunction(const ImportedErrorInfo &errorInfo,
   case ForeignErrorConvention::NonNilError:
     return resultTy;
   }
+
+  // Work around MSVC warning: not all control paths return a value
+  llvm_unreachable("All switch cases are covered");
 }
                                      
 /// Produce the foreign error convention from the imported error info,

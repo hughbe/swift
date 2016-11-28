@@ -130,6 +130,9 @@ struct ImportedName {
     case ImportedAccessorKind::SubscriptSetter:
       return true;
     }
+
+    // Work around MSVC warning: not all control paths return a value
+    llvm_unreachable("All switch cases are covered");
   }
 };
 
