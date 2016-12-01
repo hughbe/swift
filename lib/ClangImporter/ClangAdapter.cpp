@@ -563,6 +563,9 @@ OptionalTypeKind importer::translateNullability(clang::NullabilityKind kind) {
   case clang::NullabilityKind::Unspecified:
     return OptionalTypeKind::OTK_ImplicitlyUnwrappedOptional;
   }
+
+  // Work around MSVC warning: not all control paths return a value
+  llvm_unreachable("All switch cases are covered");
 }
 
 bool importer::hasDesignatedInitializers(
@@ -618,8 +621,12 @@ static bool isAccessibilityConformingContext(const clang::DeclContext *ctx) {
 
 bool
 importer::shouldImportPropertyAsAccessors(const clang::ObjCPropertyDecl *prop) {
+  // TODO (hughbe/MSVC): fix an error using SwiftImportPropertyAsAccessorsAttr
+  // Fails with: "SwiftImportPropertyAsAccessorsAttr" is not a member of 'clang'
+#if !defined(_MSC_VER)
   if (prop->hasAttr<clang::SwiftImportPropertyAsAccessorsAttr>())
     return true;
+#endif
 
   // Check if the property is one of the specially handled accessibility APIs.
   //
