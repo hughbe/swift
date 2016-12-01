@@ -311,8 +311,10 @@ FixedTypeInfo::getSpareBitExtraInhabitantIndex(IRGenFunction &IGF,
     llvm::Value *spareIdx
       = emitGatherSpareBits(IGF, SpareBits, val, numOccupiedBits, 31);
     // Unbias by subtracting one.
+
+    uint64_t shifted = static_cast<uint64_t>(1 << numOccupiedBits);
     spareIdx = IGF.Builder.CreateSub(spareIdx,
-            llvm::ConstantInt::get(spareIdx->getType(), 1 << numOccupiedBits));
+            llvm::ConstantInt::get(spareIdx->getType(), shifted));
     idx = IGF.Builder.CreateOr(idx, spareIdx);
   }
   idx = IGF.Builder.CreateZExt(idx, IGF.IGM.Int32Ty);
@@ -676,15 +678,14 @@ void TypeConverter::popGenericContext(CanGenericSignature signature) {
   Types.DependentCache.clear();
 }
 
-ArchetypeBuilder &TypeConverter::getArchetypes() {
+GenericEnvironment *TypeConverter::getGenericEnvironment() {
   auto moduleDecl = IGM.getSwiftModule();
   auto genericSig = IGM.getSILTypes().getCurGenericContext();
-  return *moduleDecl->getASTContext()
-      .getOrCreateArchetypeBuilder(genericSig, moduleDecl);
+  return genericSig->getCanonicalSignature().getGenericEnvironment(*moduleDecl);
 }
 
-ArchetypeBuilder &IRGenModule::getContextArchetypes() {
-  return Types.getArchetypes();
+GenericEnvironment *IRGenModule::getGenericEnvironment() {
+  return Types.getGenericEnvironment();
 }
 
 /// Add a temporary forward declaration for a type.  This will live
@@ -744,6 +745,8 @@ IRGenModule::getReferenceObjectTypeInfo(ReferenceCounting refcounting) {
   case ReferenceCounting::ObjC:
     llvm_unreachable("not implemented");
   }
+
+  llvm_unreachable("Not a valid ReferenceCounting.");
 }
 
 const LoadableTypeInfo &IRGenModule::getNativeObjectTypeInfo() {
@@ -1139,10 +1142,10 @@ TypeCacheEntry TypeConverter::getTypeEntry(CanType canonicalTy) {
   auto contextTy = canonicalTy;
   if (contextTy->hasTypeParameter()) {
     // The type we got should be lowered, so lower it like a SILType.
-    contextTy = getArchetypes().substDependentType(IGM.getSILModule(),
-                                   SILType::getPrimitiveAddressType(contextTy))
+    contextTy = getGenericEnvironment()->mapTypeIntoContext(
+                  IGM.getSILModule(),
+                  SILType::getPrimitiveAddressType(contextTy))
       .getSwiftRValueType();
-    
   }
   
   // Fold archetypes to unique exemplars. Any archetype with the same
@@ -1816,6 +1819,8 @@ llvm::Value *IRGenFunction::getLocalSelfMetadata() {
   case ObjectReference:
     return emitDynamicTypeOfOpaqueHeapObject(*this, LocalSelf);
   }
+
+  llvm_unreachable("Not a valid LocalSelfKind.");
 }
 
 void IRGenFunction::setLocalSelfMetadata(llvm::Value *value,

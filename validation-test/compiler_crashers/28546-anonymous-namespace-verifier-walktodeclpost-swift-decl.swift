@@ -5,10 +5,6 @@
 // See https://swift.org/LICENSE.txt for license information
 // See https://swift.org/CONTRIBUTORS.txt for the list of Swift project authors
 
-// RUN: not --crash %target-swift-frontend %s -typecheck
-// REQUIRES: asserts
-let E{enum
-C{{
-}
-protocol E{
-typealias B<>:A}}class A:A{init()
+// RUN: not --crash %target-swift-frontend %s -emit-ir
+{return B
+override class B

@@ -2725,6 +2725,8 @@ namespace {
         return nullptr;
       }
       }
+      
+      llvm_unreachable("Invalid EnumKind.");
     }
 
 
@@ -6817,7 +6819,7 @@ DeclContext *ClangImporter::Implementation::importDeclContextImpl(
 // Calculate the generic environment from an imported generic param list.
 GenericEnvironment *ClangImporter::Implementation::buildGenericEnvironment(
     GenericParamList *genericParams, DeclContext *dc) {
-  ArchetypeBuilder builder(*dc->getParentModule(), SwiftContext.Diags);
+  ArchetypeBuilder builder(*dc->getParentModule());
   for (auto param : *genericParams)
     builder.addGenericParameter(param);
   for (auto param : *genericParams) {

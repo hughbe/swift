@@ -18,16 +18,20 @@
 #define SWIFT_AST_GENERIC_ENVIRONMENT_H
 
 #include "swift/AST/SubstitutionMap.h"
+#include "swift/AST/GenericParamKey.h"
 #include "swift/AST/GenericSignature.h"
 
 namespace swift {
 
+class ArchetypeBuilder;
 class ASTContext;
 class GenericTypeParamType;
+class SILModule;
+class SILType;
 
 /// Describes the mapping between archetypes and interface types for the
 /// generic parameters of a DeclContext.
-class GenericEnvironment final {
+class alignas(1 << DeclAlignInBits) GenericEnvironment final {
   GenericSignature *Signature;
   TypeSubstitutionMap ArchetypeToInterfaceMap;
   TypeSubstitutionMap InterfaceToArchetypeMap;
@@ -53,6 +57,21 @@ public:
                           GenericSignature *signature,
                           TypeSubstitutionMap interfaceToArchetypeMap);
 
+  /// Create a new, "incomplete" generic environment that will be populated
+  /// by calls to \c addMapping().
+  static
+  GenericEnvironment *getIncomplete(ASTContext &ctx,
+                                    GenericSignature *signature);
+
+  /// Add a mapping of a generic parameter to a specific type (which may be
+  /// an archetype)
+  void addMapping(GenericParamKey key, Type contextType);
+
+  /// Retrieve the mapping for the given generic parameter, if present.
+  ///
+  /// This is only useful when lazily populating a generic environment.
+  Optional<Type> getMappingIfPresent(GenericParamKey key) const;
+
   /// Make vanilla new/delete illegal.
   void *operator new(size_t Bytes) = delete;
   void operator delete(void *Data) = delete;
@@ -69,6 +88,12 @@ public:
 
   /// Map a generic parameter type to a contextual type.
   Type mapTypeIntoContext(GenericTypeParamType *type) const;
+
+  /// \brief Map the given SIL interface type to a contextual type.
+  ///
+  /// This operation will also reabstract dependent types according to the
+  /// abstraction level of their associated type requirements.
+  SILType mapTypeIntoContext(SILModule &M, SILType type) const;
 
   /// Get the sugared form of a generic parameter type.
   GenericTypeParamType *getSugaredType(GenericTypeParamType *type) const;

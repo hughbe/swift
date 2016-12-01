@@ -317,6 +317,8 @@ namespace {
         // Warnings at most.
         return false;
       }
+
+      llvm_unreachable("Unhandled OptionalAdjustmentKind in switch.");
     }
 
     /// Retrieve the source location at which the optional is
@@ -389,6 +391,8 @@ namespace {
       case MatchKind::NonObjC:
         return false;
       }
+
+      llvm_unreachable("Unhandled MatchKind in switch.");
     }
 
     /// \brief Determine whether this requirement match has a witness type.
@@ -412,15 +416,19 @@ namespace {
       case MatchKind::NonObjC:
         return false;
       }
+
+      llvm_unreachable("Unhandled MatchKind in switch.");
     }
 
     SmallVector<Substitution, 2> WitnessSubstitutions;
 
     swift::Witness getWitness(ASTContext &ctx,
                               RequirementEnvironment &&reqEnvironment) const {
+      auto environment = reqEnvironment.getSyntheticEnvironment();
+      auto map = reqEnvironment.takeRequirementToSyntheticMap();
       return swift::Witness(this->Witness, WitnessSubstitutions,
-                            reqEnvironment.getSyntheticEnvironment(),
-                            reqEnvironment.takeRequirementToSyntheticMap());
+                            environment,
+                            map);
     }
 
     /// Classify the provided optionality issues for use in diagnostics.
@@ -1016,7 +1024,7 @@ RequirementEnvironment::RequirementEnvironment(
   // Construct an archetype builder by collecting the constraints from the
   // requirement and the context of the conformance together, because both
   // define the capabilities of the requirement.
-  ArchetypeBuilder builder(*conformanceDC->getParentModule(), ctx.Diags);
+  ArchetypeBuilder builder(*conformanceDC->getParentModule());
   SmallVector<GenericTypeParamType*, 4> allGenericParams;
 
   // Add the generic signature of the context of the conformance. This includes
