@@ -34,6 +34,6 @@ add_swift_library(swiftStdlibStubs OBJECT_LIBRARY TARGET_LIBRARY
   ${swift_stubs_unicode_normalization_sources}
   C_COMPILE_FLAGS ${swift_stubs_c_compile_flags}
   LINK_FLAGS ${SWIFT_RUNTIME_CORE_LINK_FLAGS}
-  TARGET_SDKS ANDROID CYGWIN FREEBSD LINUX
+  TARGET_SDKS ANDROID CYGWIN FREEBSD LINUX WINDOWS
   INSTALL_IN_COMPONENT stdlib)
 

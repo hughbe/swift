@@ -12,19 +12,40 @@ add_swift_host_tool(swift
   SWIFT_COMPONENT compiler
 )
 
-target_link_libraries(swift edit)
+# CMake doesn't support create_symlink on Windows: http://cmake.3232098.n2.nabble.com/cmake-E-create-symlink-for-Windows-td4151271.html
+# TODO(hughbe/Windows): Windows does not support libedit currently. See the TODO in tools/SourceKit/tools/CMakeLists.txt
+if("${CMAKE_SYSTEM_NAME}" STREQUAL "Windows")
+  foreach(file swiftc;swift-format;swift-autolink-extract)
+    # mklink requires that the file doesn't exist (and has no overwrite option)
+    if (EXISTS "${SWIFT_RUNTIME_OUTPUT_INTDIR}/${file}.exe")
+      add_custom_command(TARGET swift POST_BUILD
+        COMMAND
+          "del"
+          "${file}.exe"
+        WORKING_DIRECTORY "${SWIFT_RUNTIME_OUTPUT_INTDIR}")
+    endif()
 
-add_custom_command(TARGET swift POST_BUILD
-    COMMAND "${CMAKE_COMMAND}" "-E" "create_symlink" "swift" "swiftc"
-    WORKING_DIRECTORY "${SWIFT_RUNTIME_OUTPUT_INTDIR}")
+    add_custom_command(TARGET swift POST_BUILD
+      COMMAND
+        "mklink" "/H"
+        "${file}.exe"
+        "swift.exe"
+      WORKING_DIRECTORY "${SWIFT_RUNTIME_OUTPUT_INTDIR}")
+  endforeach()
+else()
+  target_link_libraries(swift edit)
+  add_custom_command(TARGET swift POST_BUILD
+      COMMAND "${CMAKE_COMMAND}" "-E" "create_symlink" "swift" "swiftc"
+      WORKING_DIRECTORY "${SWIFT_RUNTIME_OUTPUT_INTDIR}")
 
-add_custom_command(TARGET swift POST_BUILD
-    COMMAND "${CMAKE_COMMAND}" "-E" "create_symlink" "swift" "swift-autolink-extract"
-    WORKING_DIRECTORY "${SWIFT_RUNTIME_OUTPUT_INTDIR}")
+  add_custom_command(TARGET swift POST_BUILD
+      COMMAND "${CMAKE_COMMAND}" "-E" "create_symlink" "swift" "swift-autolink-extract"
+      WORKING_DIRECTORY "${SWIFT_RUNTIME_OUTPUT_INTDIR}")
 
-add_custom_command(TARGET swift POST_BUILD
-    COMMAND "${CMAKE_COMMAND}" "-E" "create_symlink" "swift" "swift-format"
-    WORKING_DIRECTORY "${SWIFT_RUNTIME_OUTPUT_INTDIR}")
+  add_custom_command(TARGET swift POST_BUILD
+      COMMAND "${CMAKE_COMMAND}" "-E" "create_symlink" "swift" "swift-format"
+      WORKING_DIRECTORY "${SWIFT_RUNTIME_OUTPUT_INTDIR}")
+endif()
 
 # If building as part of clang, make sure the headers are installed.
 if(NOT SWIFT_BUILT_STANDALONE)

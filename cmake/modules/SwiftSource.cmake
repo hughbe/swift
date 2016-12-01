@@ -320,7 +320,6 @@ function(_compile_swift_files
       FILES "${module_file}" "${module_doc_file}"
       DESTINATION "lib${LLVM_LIBDIR_SUFFIX}/swift/${library_subdir}")
 
-  set(line_directive_tool "${SWIFT_SOURCE_DIR}/utils/line-directive")
   set(swift_compiler_tool "${SWIFT_NATIVE_SWIFT_TOOLS_PATH}/swiftc")
   set(swift_compiler_tool_dep)
   if(SWIFT_INCLUDE_TOOLS)
@@ -424,39 +423,94 @@ function(_compile_swift_files
 
   # Then we can compile both the object files and the swiftmodule files
   # in parallel in this target for the object file, and ...
-  add_custom_command_target(
-      dependency_target
-      COMMAND
-        "${line_directive_tool}" "${source_files}" --
-        "${swift_compiler_tool}" "${main_command}" ${swift_flags}
-        ${output_option} "${source_files}"
-      ${command_touch_standard_outputs}
-      OUTPUT ${standard_outputs}
-      DEPENDS
-        ${swift_compiler_tool_dep}
-        ${source_files} ${SWIFTFILE_DEPENDS}
-        ${swift_ide_test_dependency} ${api_notes_dependency_target}
-        ${obj_dirs_dependency_target}
-      COMMENT "Compiling ${first_output}")
-  set("${dependency_target_out_var_name}" "${dependency_target}" PARENT_SCOPE)
 
-  # This is the target to generate the .swiftmodule and .swiftdoc
-  if (module_file)
+  # HACK: Windows doesn't support long command line paths of 8191 chars or over.
+  # We need to work around this by avoiding long command line arguments. This can be
+  # achieved by writing the list of file paths to a file, passing that file to a new
+  # Python utility script (line-directive-file), which reads the list of file paths,
+  # passing them to the old Python utility script (line-directive)
+  # TODO: we should move non-Windows builds to use this code at some point to
+  # remove code duplication
+  if("${CMAKE_SYSTEM_NAME}" STREQUAL "Windows")
+    set(line_directive_tool "${SWIFT_SOURCE_DIR}/utils/line-directive-file")
+    set(line_directive_arguments, "${CMAKE_CURRENT_BINARY_DIR}/line-directive-workaround.txt")
+
+    set(source_files_string "")
+    foreach(file ${source_files})
+      set(source_files_string "${source_files_string} ${file}")
+    endforeach()
+
+    set(file_path "${CMAKE_CURRENT_BINARY_DIR}/link_directories.tmp")
+    file(WRITE "${file_path}" "${source_files_string}")
+    
     add_custom_command_target(
-        module_dependency_target
+        dependency_target
         COMMAND
-          "${line_directive_tool}" "${source_files}" --
-          "${swift_compiler_tool}" "${module_command}" ${swift_flags}
-          "${source_files}"
-        ${command_touch_module_outputs}
-        OUTPUT ${module_outputs}
+          "python" "${line_directive_tool}" "${file_path}" --
+          "${swift_compiler_tool}" "${main_command}" ${swift_flags}
+          ${output_option}
+        ${command_touch_standard_outputs}
+        OUTPUT ${standard_outputs}
         DEPENDS
           ${swift_compiler_tool_dep}
           ${source_files} ${SWIFTFILE_DEPENDS}
           ${swift_ide_test_dependency} ${api_notes_dependency_target}
           ${obj_dirs_dependency_target}
-        COMMENT "Generating ${module_file}")
-    set("${dependency_module_target_out_var_name}" "${module_dependency_target}" PARENT_SCOPE)
+        COMMENT "Compiling ${first_output}")
+    set("${dependency_target_out_var_name}" "${dependency_target}" PARENT_SCOPE)
+
+    if (module_file)
+      add_custom_command_target(
+          module_dependency_target
+          COMMAND
+            "python" "${line_directive_tool}" "${file_path}" --
+            "${swift_compiler_tool}" "${module_command}" ${swift_flags}
+          ${command_touch_module_outputs}
+          OUTPUT ${module_outputs}
+          DEPENDS
+            ${swift_compiler_tool_dep}
+            ${source_files} ${SWIFTFILE_DEPENDS}
+            ${swift_ide_test_dependency} ${api_notes_dependency_target}
+            ${obj_dirs_dependency_target}
+          COMMENT "Generating ${module_file}")
+      set("${dependency_module_target_out_var_name}" "${module_dependency_target}" PARENT_SCOPE)
+    endif()
+  else()
+    set(line_directive_tool "${SWIFT_SOURCE_DIR}/utils/line-directive")
+    add_custom_command_target(
+        dependency_target
+        COMMAND
+          "${line_directive_tool}" "${source_files}" --
+          "${swift_compiler_tool}" "${main_command}" ${swift_flags}
+          ${output_option} "${source_files}"
+        ${command_touch_standard_outputs}
+        OUTPUT ${standard_outputs}
+        DEPENDS
+          ${swift_compiler_tool_dep}
+          ${source_files} ${SWIFTFILE_DEPENDS}
+          ${swift_ide_test_dependency} ${api_notes_dependency_target}
+          ${obj_dirs_dependency_target}
+        COMMENT "Compiling ${first_output}")
+    set("${dependency_target_out_var_name}" "${dependency_target}" PARENT_SCOPE)
+
+    # This is the target to generate the .swiftmodule and .swiftdoc
+    if (module_file)
+      add_custom_command_target(
+          module_dependency_target
+          COMMAND
+            "${line_directive_tool}" "${source_files}" --
+            "${swift_compiler_tool}" "${module_command}" ${swift_flags}
+            "${source_files}"
+          ${command_touch_module_outputs}
+          OUTPUT ${module_outputs}
+          DEPENDS
+            ${swift_compiler_tool_dep}
+            ${source_files} ${SWIFTFILE_DEPENDS}
+            ${swift_ide_test_dependency} ${api_notes_dependency_target}
+            ${obj_dirs_dependency_target}
+          COMMENT "Generating ${module_file}")
+      set("${dependency_module_target_out_var_name}" "${module_dependency_target}" PARENT_SCOPE)
+    endif()
   endif()
 
   # Make sure the build system knows the file is a generated object file.

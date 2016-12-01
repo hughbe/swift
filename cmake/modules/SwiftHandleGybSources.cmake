@@ -42,6 +42,14 @@ function(handle_gyb_source_single dependency_out_var_name)
       ${GYB_SINGLE_FLAGS})
 
   set(gyb_tool "${SWIFT_SOURCE_DIR}/utils/gyb")
+
+  # GYB needs to be run via python on Windows
+  if ("${CMAKE_SYSTEM_NAME}" STREQUAL "Windows")
+    set(gyb_tool_command "python" ${gyb_tool})
+  else()
+    set(gyb_tool_command ${gyb_tool})
+  endif()
+
   set(gyb_tool_source "${gyb_tool}" "${gyb_tool}.py")
 
   get_filename_component(dir "${GYB_SINGLE_OUTPUT}" DIRECTORY)
@@ -51,7 +59,7 @@ function(handle_gyb_source_single dependency_out_var_name)
       COMMAND
           "${CMAKE_COMMAND}" -E make_directory "${dir}"
       COMMAND
-          "${gyb_tool}" "${gyb_flags}"
+          "${gyb_tool_command}" "${gyb_flags}"
           -o "${GYB_SINGLE_OUTPUT}.tmp" "${GYB_SINGLE_SOURCE}"
       COMMAND
           "${CMAKE_COMMAND}" -E copy_if_different
@@ -113,10 +121,20 @@ function(handle_gyb_sources dependency_out_var_name sources_var_name arch)
     if(src STREQUAL src_sans_gyb)
       list(APPEND de_gybbed_sources "${src}")
     else()
-      if (arch)
-        set(dir "${CMAKE_CURRENT_BINARY_DIR}/${ptr_size}")
+
+      # On Windows (using Visual Studio), the generated project files assume that the
+      # generated GYB files will be in the source, not binary directory.
+      # TODO: when we use Ninja as a generator, this may be unecessary.
+      IF (WIN32)
+        set(dir_root ${CMAKE_CURRENT_SOURCE_DIR})
       else()
-        set(dir "${CMAKE_CURRENT_BINARY_DIR}")
+        set(dir_root ${CMAKE_CURRENT_BINARY_DIR})
+      endif()
+      
+      if (arch)
+        set(dir "${dir_root}/${ptr_size}")
+      else()
+        set(dir "${dir_root}")
       endif()
       set(output_file_name "${dir}/${src_sans_gyb}")
       list(APPEND de_gybbed_sources "${output_file_name}")

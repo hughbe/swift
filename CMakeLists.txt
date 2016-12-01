@@ -165,7 +165,7 @@ set(SWIFT_ANDROID_DEPLOY_DEVICE_PATH "" CACHE STRING
 # User-configurable ICU specific options for Android, FreeBSD, Linux.
 #
 
-foreach(sdk ANDROID;FREEBSD;LINUX;WINDOWS)
+foreach(sdk ANDROID;FREEBSD;LINUX)
   set(SWIFT_${sdk}_ICU_UC "" CACHE STRING
       "Path to a directory containing the icuuc library for ${sdk}")
   set(SWIFT_${sdk}_ICU_UC_INCLUDE "" CACHE STRING
@@ -448,6 +448,8 @@ else()
     set(SWIFT_HOST_VARIANT_SDK_default "FREEBSD")
   elseif("${CMAKE_SYSTEM_NAME}" STREQUAL "CYGWIN")
     set(SWIFT_HOST_VARIANT_SDK_default "CYGWIN")
+  elseif("${CMAKE_SYSTEM_NAME}" STREQUAL "Windows")
+    set(SWIFT_HOST_VARIANT_SDK_default "WINDOWS")
   elseif("${CMAKE_SYSTEM_NAME}" STREQUAL "Darwin")
     set(SWIFT_HOST_VARIANT_SDK_default "OSX")
   else()
@@ -474,6 +476,12 @@ else()
     set(SWIFT_HOST_VARIANT_ARCH_default "armv6")
   elseif("${CMAKE_SYSTEM_PROCESSOR}" STREQUAL "armv7l")
     set(SWIFT_HOST_VARIANT_ARCH_default "armv7")
+  elseif("${CMAKE_SYSTEM_PROCESSOR}" STREQUAL "AMD64")
+    set(SWIFT_HOST_VARIANT_ARCH_default "amd64")
+  elseif("${CMAKE_SYSTEM_PROCESSOR}" STREQUAL "IA64")
+    set(SWIFT_HOST_VARIANT_ARCH_default "ia64")
+  elseif("${CMAKE_SYSTEM_PROCESSOR}" STREQUAL "x86")
+    set(SWIFT_HOST_VARIANT_ARCH_default "x86")
   else()
     message(FATAL_ERROR "Unrecognized architecture on host system: ${CMAKE_SYSTEM_PROCESSOR}")
   endif()
@@ -578,9 +586,40 @@ elseif("${SWIFT_HOST_VARIANT_SDK}" STREQUAL "CYGWIN")
       "Deployment OS for Swift host tools (the compiler) [windows].")
 
   configure_sdk_unix(CYGWIN "Cygwin" "windows" "cygwin" "windows" "x86_64-unknown-windows-cygnus" "/")
-  set(SWIFT_PRIMARY_VARIANT_SDK_default  "${SWIFT_HOST_VARIANT_SDK}")
+  set(SWIFT_PRIMARY_VARIANT_SDK_default "${SWIFT_HOST_VARIANT_SDK}")
   set(SWIFT_PRIMARY_VARIANT_ARCH_default "x86_64")
 
+elseif("${SWIFT_HOST_VARIANT_SDK}" STREQUAL "WINDOWS")
+  configure_sdk_windows(WINDOWS "Windows" "msvc" "${SWIFT_HOST_VARIANT_ARCH}")
+  set(SWIFT_PRIMARY_VARIANT_SDK_default  "${SWIFT_HOST_VARIANT_SDK}")
+  set(SWIFT_PRIMARY_VARIANT_ARCH_default "${SWIFT_HOST_VARIANT_ARCH}")
+
+  # We don't have a build script for Windows currently (build-script-impl is a bash script), so temporarily shortens and simplifies the build
+  # command for Swift on Windows - we only need to define 1 CMAKE variable (-DSWIFT_WINDOWS_ICU), rather than 8 (that are all the same anyway!)
+  # We also want to avoid a dependency on PkgConfig (find_package), which is not easily available on Windows.
+  # TODO: move this to the Windows build-script when we have one
+  set(ICU_UC_INCLUDE_DIR "${SWIFT_WINDOWS_ICU}/include")
+  set(ICU_I18N_INCLUDE_DIR "${SWIFT_WINDOWS_ICU}/include")
+
+  if ("${SWIFT_HOST_VARIANT_ARCH}" STREQUAL "amd64" OR "${SWIFT_HOST_VARIANT_ARCH}" STREQUAL "ia64")
+    set(ICU_UC_LIBRARIES "${SWIFT_WINDOWS_ICU}/lib64")
+    set(ICU_I18N_LIBRARIES "${SWIFT_WINDOWS_ICU}/lib64")
+  else()
+    set(ICU_UC_LIBRARIES "${SWIFT_WINDOWS_ICU}/lib")
+    set(ICU_I18N_LIBRARIES "${SWIFT_WINDOWS_ICU}/lib")
+  endif()
+
+  set(SWIFT_WINDOWS_ICU_UC_INCLUDE "${ICU_UC_INCLUDE_DIR}")
+  set(SWIFT_WINDOWS_ICU_UC "${ICU_UC_LIBRARIES}/icuucd.lib")
+  set(SWIFT_WINDOWS_ICU_I18N_INCLUDE "${ICU_I18N_INCLUDE_DIR}")
+  set(SWIFT_WINDOWS_ICU_I18N "${ICU_I18N_LIBRARIES}/icuind.lib")
+
+  if (NOT EXISTS "${SWIFT_WINDOWS_ICU_UC}")
+    message(FATAL_ERROR "Could not find ICU UC at: ${SWIFT_WINDOWS_ICU_UC}. Have you correctly specified -DSWIFT_WINDOWS_ICU=...?")
+  elseif (NOT EXISTS "${SWIFT_WINDOWS_ICU_I18N}")
+    message(FATAL_ERROR "Could not find ICU I18N at: ${SWIFT_WINDOWS_ICU_I18N}. Have you correctly specified -DSWIFT_WINDOWS_ICU=...?")
+  endif()
+  
 elseif("${SWIFT_HOST_VARIANT_SDK}" MATCHES "(OSX|IOS*|TVOS*|WATCHOS*)")
 
   set(SWIFT_HOST_VARIANT "macosx" CACHE STRING
@@ -724,7 +763,7 @@ endif()
 
 # Should we cross-compile the standard library for Windows?
 is_sdk_requested(WINDOWS swift_build_windows)
-if(swift_build_windows)
+if(swift_build_windows AND NOT "${CMAKE_SYSTEM_NAME}" STREQUAL "Windows")
   configure_sdk_windows(WINDOWS "Windows" "msvc" i686)
 endif()
 

@@ -79,13 +79,20 @@ else() # NOT SWIFT_BUILT_STANDALONE
   set(clang_headers_location "${LLVM_LIBRARY_DIR}/clang/${CLANG_VERSION}")
 endif()
 
+# CMake doesn't support create_symlink on Windows: http://cmake.3232098.n2.nabble.com/cmake-E-create-symlink-for-Windows-td4151271.html
+if ("${CMAKE_SYSTEM_NAME}" STREQUAL "Windows")
+set(symlink_command "mklink")
+set(symlink_args /D /J \"${SWIFTLIB_DIR}/clang\" \"${clang_headers_location}\")
+else()
+set(symlink_command ${CMAKE_COMMAND})
+set(symlink_args -E create_symlink ${clang_headers_location} ${SWIFTLIB_DIR}/clang)
+endif()
+
 add_custom_command_target(unused_var
     COMMAND
       "${CMAKE_COMMAND}" "-E" "make_directory" "${SWIFTLIB_DIR}"
     COMMAND
-      "${CMAKE_COMMAND}" "-E" "create_symlink"
-      "${clang_headers_location}"
-      "${SWIFTLIB_DIR}/clang"
+      "${symlink_command}" ${symlink_args}
 
     CUSTOM_TARGET_NAME "symlink_clang_headers"
     OUTPUT "${SWIFTLIB_DIR}/clang"

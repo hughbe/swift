@@ -1,0 +1,47 @@
+# line-directive-windows.py - Error message line transformer ----*- python -*-
+#
+# This source file is part of the Swift.org open source project
+#
+# Copyright (c) 2014 - 2016 Apple Inc. and the Swift project authors
+# Licensed under Apache License v2.0 with Runtime Library Exception
+#
+# See http://swift.org/LICENSE.txt for license information
+# See http://swift.org/CONTRIBUTORS.txt for the list of Swift project authors
+#
+# ----------------------------------------------------------------------------
+#
+# Converts line numbers in error messages according to "line directive"
+# comments.
+#
+# ----------------------------------------------------------------------------
+
+import sys
+import os
+import subprocess
+
+def run():
+    # On Windows, the command line doesn't let us pass long files. This means
+    # that we need to have a way to bypass the command line to pass files to
+    # line-directive. An alternative is reading a file written by CMake and
+    # forwarding the arguments via Python.
+    with open(sys.argv[1], 'r') as files:
+        data = files.read()
+        sources = filter(None, data.split(' '))
+
+    if len(sys.argv) > 2:
+        # We need to append the list of files again (for swiftc)
+        args = sys.argv[2:]
+        args.extend(sources)
+        sources.extend(args)
+
+    args = ''
+    for arg in sources:
+        args += ' ' + arg
+
+    utils_path = os.path.dirname(os.path.abspath(__file__))
+    actual_script_path = os.path.join(utils_path, "line-directive")
+
+    subprocess.call("python " + actual_script_path + args)
+
+if __name__ == '__main__':
+    run()

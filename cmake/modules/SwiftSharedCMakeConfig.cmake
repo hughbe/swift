@@ -192,10 +192,23 @@ macro(swift_common_standalone_build_config_cmark product)
     ABSOLUTE)
   get_filename_component(CMARK_LIBRARY_DIR "${${product}_CMARK_LIBRARY_DIR}"
     ABSOLUTE)
+
   set(CMARK_MAIN_INCLUDE_DIR "${CMARK_MAIN_SRC_DIR}/src")
   set(CMARK_BUILD_INCLUDE_DIR "${PATH_TO_CMARK_BUILD}/src")
-  include_directories("${CMARK_MAIN_INCLUDE_DIR}"
-                      "${CMARK_BUILD_INCLUDE_DIR}")
+
+  if (NOT EXISTS "${CMARK_MAIN_INCLUDE_DIR}")
+    message(FATAL_ERROR "Could not find cmark source directory at: ${CMARK_MAIN_INCLUDE_DIR}. Have you correctly specified -DSWIFT_PATH_TO_CMARK_SOURCE=...?")
+  elseif (NOT EXISTS "${CMARK_BUILD_INCLUDE_DIR}")
+    message(FATAL_ERROR "Could not find cmark build source directory at: ${CMARK_BUILD_INCLUDE_DIR}. Have you build cmark and correctly specified -DSWIFT_PATH_TO_CMARK_BUILD=...?")
+  elseif (NOT EXISTS "${CMARK_LIBRARY_DIR}")
+    message(FATAL_ERROR "Could not find cmark library directory at: ${CMARK_LIBRARY_DIR}. Have you build cmark and correctly specified -DSWIFT_CMARK_LIBRARY_DIR=...?")
+  endif()
+
+  # MSVC can't include directories at this point - we need to wait until _add_swift_library_single
+  if (NOT "${CMAKE_C_COMPILER_ID}" STREQUAL "Windows")
+    include_directories("${CMARK_MAIN_INCLUDE_DIR}"
+                        "${CMARK_BUILD_INCLUDE_DIR}")
+  endif()
 endmacro()
 
 # Common cmake project config for standalone builds.
